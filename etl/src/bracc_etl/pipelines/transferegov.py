@@ -254,6 +254,7 @@ class TransferegovPipeline(Pipeline):
 
     def load(self) -> None:
         loader = Neo4jBatchLoader(self.driver)
+        self.rows_in = len(self.amendments)
 
         # 1. Amendment nodes
         if self.amendments:

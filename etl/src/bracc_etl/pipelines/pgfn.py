@@ -158,6 +158,7 @@ class PgfnPipeline(Pipeline):
 
     def load(self) -> None:
         loader = Neo4jBatchLoader(self.driver)
+        self.rows_in = len(self.finances)
 
         if self.finances:
             loaded = loader.load_nodes("Finance", self.finances, key_field="finance_id")

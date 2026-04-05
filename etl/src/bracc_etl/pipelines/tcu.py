@@ -274,6 +274,8 @@ class TcuPipeline(Pipeline):
     def load(self) -> None:
         loader = Neo4jBatchLoader(self.driver)
 
+        self.rows_in = len(self.sanctions)
+
         # Load Sanction nodes
         if self.sanctions:
             loader.load_nodes("Sanction", self.sanctions, key_field="sanction_id")
