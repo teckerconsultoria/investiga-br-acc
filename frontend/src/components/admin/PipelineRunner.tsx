@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Play, RotateCcw, Square } from "lucide-react";
+import { Play, RotateCcw, Info, AlertTriangle, Square } from "lucide-react";
 
 import { listAdminSources, type AdminSource } from "@/api/client";
 import { useAdminWebSocket } from "@/hooks/useAdminWebSocket";
@@ -13,6 +13,7 @@ export function PipelineRunner() {
   const [selectedSource, setSelectedSource] = useState("");
   const [resetDb, setResetDb] = useState(false);
   const [bootstrapSources, setBootstrapSources] = useState("");
+  const [quickMode, setQuickMode] = useState<"single" | "bootstrap" | "core">("single");
   const logRef = useRef<HTMLDivElement>(null);
 
   const ws = useAdminWebSocket("changeme");
@@ -29,6 +30,9 @@ export function PipelineRunner() {
     }
   }, [ws.logs]);
 
+  const runnableSources = sources.filter((s) => s.pipeline_id && s.implementation_state === "implemented");
+  const selectedInfo = sources.find((s) => s.pipeline_id === selectedSource);
+
   const handleRunPipeline = () => {
     if (!selectedSource) return;
     ws.runPipeline(selectedSource);
@@ -38,11 +42,37 @@ export function PipelineRunner() {
     ws.runBootstrap(bootstrapSources, resetDb);
   };
 
+  const handleRunCore = () => {
+    ws.runBootstrap("cnpj,comprasnet,pgfn,tcu,ceis,cnep,transparencia", false);
+  };
+
   return (
     <div className={styles.container}>
-      <div className={styles.grid}>
+      <div className={styles.modeTabs}>
+        <button
+          className={`${styles.modeTab} ${quickMode === "single" ? styles.modeTabActive : ""}`}
+          onClick={() => setQuickMode("single")}
+        >
+          {t("admin.modeSingle")}
+        </button>
+        <button
+          className={`${styles.modeTab} ${quickMode === "core" ? styles.modeTabActive : ""}`}
+          onClick={() => setQuickMode("core")}
+        >
+          {t("admin.modeCore")}
+        </button>
+        <button
+          className={`${styles.modeTab} ${quickMode === "bootstrap" ? styles.modeTabActive : ""}`}
+          onClick={() => setQuickMode("bootstrap")}
+        >
+          {t("admin.modeBootstrap")}
+        </button>
+      </div>
+
+      {quickMode === "single" && (
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>{t("admin.runSingle")}</h2>
+          <p className={styles.hint}>{t("admin.runSingleHint")}</p>
           <div className={styles.formRow}>
             <select
               className={styles.select}
@@ -50,9 +80,9 @@ export function PipelineRunner() {
               onChange={(e) => setSelectedSource(e.target.value)}
             >
               <option value="">{t("admin.selectSource")}</option>
-              {sources.map((s) => (
+              {runnableSources.map((s) => (
                 <option key={s.pipeline_id} value={s.pipeline_id}>
-                  {s.name} ({s.pipeline_id})
+                  {s.name} ({s.pipeline_id}) [{s.tier}]
                 </option>
               ))}
             </select>
@@ -65,10 +95,54 @@ export function PipelineRunner() {
               {t("admin.run")}
             </button>
           </div>
+          {selectedInfo && (
+            <div className={styles.sourceInfo}>
+              <Info size={14} />
+              <div>
+                <strong>{selectedInfo.name}</strong> — {selectedInfo.category}
+                <br />
+                <span className={styles.muted}>
+                  {selectedInfo.access_mode} · {selectedInfo.frequency} · {selectedInfo.status}
+                </span>
+              </div>
+            </div>
+          )}
+          {runnableSources.length === 0 && (
+            <div className={styles.warning}>
+              <AlertTriangle size={16} />
+              <span>{t("admin.noRunnableSources")}</span>
+            </div>
+          )}
         </section>
+      )}
 
+      {quickMode === "core" && (
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>{t("admin.runCore")}</h2>
+          <p className={styles.hint}>{t("admin.runCoreHint")}</p>
+          <div className={styles.coreList}>
+            {sources.filter((s) => ["cnpj", "comprasnet", "pgfn", "tcu", "ceis", "cnep", "transparencia"].includes(s.pipeline_id)).map((s) => (
+              <span key={s.pipeline_id} className={styles.coreChip}>
+                {s.name}
+              </span>
+            ))}
+          </div>
+          <button
+            className={styles.btnPrimary}
+            onClick={handleRunCore}
+            disabled={ws.isRunning}
+            style={{ marginTop: "var(--space-md)" }}
+          >
+            <Play size={16} />
+            {t("admin.runCore")}
+          </button>
+        </section>
+      )}
+
+      {quickMode === "bootstrap" && (
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>{t("admin.runBootstrap")}</h2>
+          <p className={styles.hint}>{t("admin.runBootstrapHint")}</p>
           <div className={styles.formRow}>
             <input
               className={styles.input}
@@ -95,7 +169,7 @@ export function PipelineRunner() {
             </button>
           </div>
         </section>
-      </div>
+      )}
 
       <section className={styles.logSection}>
         <div className={styles.logHeader}>
@@ -106,9 +180,6 @@ export function PipelineRunner() {
                 <Square size={12} />
                 {t("admin.running")}
               </span>
-            )}
-            {ws.isConnected && !ws.isRunning && (
-              <span className={styles.connected}>{t("admin.connected")}</span>
             )}
           </div>
         </div>
@@ -139,3 +210,4 @@ export function PipelineRunner() {
     </div>
   );
 }
+
