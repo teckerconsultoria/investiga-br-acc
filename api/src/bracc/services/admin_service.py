@@ -38,6 +38,46 @@ def _get_repo_root() -> Path:
     return Path("/app")
 
 
+def _get_host_repo_root() -> str | None:
+    """Resolve the HOST filesystem path of the repo root for Docker volume mounts.
+
+    When this API runs inside a container, /app/host is a bind mount from the
+    host. Docker-in-Docker volume paths must use HOST paths (not container paths)
+    because the Docker daemon resolves them on the host filesystem.
+    """
+    # Read /proc/mounts to find where /app/host is mounted from on the host
+    try:
+        with open("/proc/mounts") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 2 and parts[1] == "/app/host":
+                    return parts[0]
+    except OSError:
+        pass
+    # Fallback: inspect current container via Docker socket
+    try:
+        import socket as _socket
+
+        result = subprocess.run(
+            [
+                "docker",
+                "inspect",
+                "--format",
+                "{{range .Mounts}}{{if eq .Destination \"/app/host\"}}{{.Source}}{{end}}{{end}}",
+                _socket.gethostname(),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        path = result.stdout.strip()
+        if path:
+            return path
+    except Exception:
+        pass
+    return None
+
+
 def list_sources() -> list[dict[str, Any]]:
     entries = load_source_registry()
     return [e.to_public_dict() for e in entries if e.in_universe_v1]
@@ -105,32 +145,43 @@ async def run_pipeline(
         RUNS[run_id]["status"] = "error"
         return
 
-    # Step 2: run ETL via docker compose run (volume mount provides /workspace/data and /workspace/etl)
+    # Step 2: run ETL via docker run with explicit host volume mounts.
+    # docker compose run resolves '.' relative to the compose file path INSIDE
+    # the container, but the Docker daemon needs HOST paths. We detect the real
+    # host path via /proc/mounts and pass explicit -v flags to docker run.
+    host_root = _get_host_repo_root()
+    if host_root:
+        volume_args = [
+            "-v", f"{host_root}/etl:/workspace/etl:ro",
+            "-v", f"{host_root}/data:/workspace/data",
+        ]
+        etl_cmd = (
+            f"cd /workspace/etl && uv run bracc-etl run --source {pipeline_id} "
+            f"--neo4j-uri bolt://neo4j:7687 --neo4j-user neo4j "
+            f'--neo4j-password "$NEO4J_PASSWORD" --neo4j-database neo4j '
+            f"--data-dir /workspace/data --linking-tier full"
+        )
+    else:
+        # Fallback: code is baked into the image at /workspace/etl
+        volume_args = []
+        etl_cmd = (
+            f"/workspace/etl/.venv/bin/bracc-etl run --source {pipeline_id} "
+            f"--neo4j-uri bolt://neo4j:7687 --neo4j-user neo4j "
+            f'--neo4j-password "$NEO4J_PASSWORD" --neo4j-database neo4j '
+            f"--data-dir /workspace/data --linking-tier full"
+        )
+
     cmd = [
-        "docker",
-        "compose",
-        "-f",
-        compose_file,
-        "-p",
-        "br-acc",
-        "run",
-        "--rm",
-        "--no-deps",
-        "-e",
-        f"NEO4J_PASSWORD={neo4j_password}",
-        "-e",
-        "NEO4J_URI=bolt://neo4j:7687",
-        "-e",
-        "NEO4J_USER=neo4j",
-        "-e",
-        "PYTHONUNBUFFERED=1",
-        "etl",
-        "bash",
-        "-c",
-        f"cd /workspace/etl && uv run bracc-etl run --source {pipeline_id} "
-        f"--neo4j-uri bolt://neo4j:7687 --neo4j-user neo4j "
-        f'--neo4j-password "$NEO4J_PASSWORD" --neo4j-database neo4j '
-        f"--data-dir /workspace/data --linking-tier full",
+        "docker", "run", "--rm",
+        "--name", f"etl-{run_id}",
+        "--network", "br-acc_default",
+        *volume_args,
+        "-e", f"NEO4J_PASSWORD={neo4j_password}",
+        "-e", "NEO4J_URI=bolt://neo4j:7687",
+        "-e", "NEO4J_USER=neo4j",
+        "-e", "PYTHONUNBUFFERED=1",
+        "br-acc-etl",
+        "bash", "-c", etl_cmd,
     ]
 
     yield json.dumps({"type": "start", "run_id": run_id, "cmd": f"etl run --source {pipeline_id}"}) + "\n"
@@ -138,7 +189,6 @@ async def run_pipeline(
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
-            cwd=str(repo_root),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env={**os.environ},
