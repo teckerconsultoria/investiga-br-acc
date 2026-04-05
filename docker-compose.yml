@@ -48,6 +48,8 @@ services:
     volumes:
       - ./docs:/app/docs
       - ./config:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/app/host
 
   frontend:
     build: ./frontend

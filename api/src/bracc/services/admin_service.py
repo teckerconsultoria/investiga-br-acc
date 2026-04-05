@@ -29,6 +29,9 @@ def _load_contract(repo_root: Path) -> dict[str, Any]:
 
 
 def _get_repo_root() -> Path:
+    host = Path("/app/host")
+    if (host / "docker-compose.yml").exists():
+        return host
     base = Path(__file__).resolve().parents[4]
     if (base / "docs" / "source_registry_br_v1.csv").exists():
         return base
@@ -76,6 +79,10 @@ async def run_pipeline(
     cmd = [
         "docker",
         "compose",
+        "-f",
+        str(repo_root / "docker-compose.yml"),
+        "-p",
+        "br-acc",
         "--profile",
         "etl",
         "run",
