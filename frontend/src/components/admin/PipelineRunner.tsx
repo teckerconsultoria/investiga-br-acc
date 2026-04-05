@@ -46,6 +46,23 @@ export function PipelineRunner({ neo4jPassword, onPasswordChange, initialSource,
     }
   }, [initialDownloadMode]);
 
+  // Auto-trigger download when source and download mode are set from parent
+  const hasAutoTriggered = useRef(false);
+
+  useEffect(() => {
+    if (initialSource && initialDownloadMode && !hasAutoTriggered.current && selectedSource && !ws.isRunning) {
+      hasAutoTriggered.current = true;
+      ws.runDownload(selectedSource);
+    }
+  }, [initialSource, initialDownloadMode, selectedSource, ws.isRunning, ws]);
+
+  // Reset auto-trigger flag when source changes
+  useEffect(() => {
+    if (initialSource) {
+      hasAutoTriggered.current = false;
+    }
+  }, [initialSource]);
+
   useEffect(() => {
     if (logRef.current) {
       logRef.current.scrollTop = logRef.current.scrollHeight;
