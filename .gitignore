@@ -79,8 +79,8 @@ scripts/audit-prompts/
 # Playwright MCP cache
 .playwright-mcp/
 
-# Claude plans
-.claude/plans/
+# Claude Code local config (contains tokens)
+.claude/
 
 # Data directories (downloaded datasets)
 data/comprasnet/
