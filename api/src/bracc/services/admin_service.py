@@ -76,30 +76,64 @@ async def run_pipeline(
         "started_at": datetime.now(UTC).isoformat(),
     }
 
+    compose_file = str(repo_root / "docker-compose.yml")
+
+    # Step 1: ensure etl image exists (build if needed)
+    build_cmd = [
+        "docker",
+        "compose",
+        "-f",
+        compose_file,
+        "-p",
+        "br-acc",
+        "build",
+        "etl",
+    ]
+    yield (
+        json.dumps({"type": "log", "source": "system", "line": "Building ETL image (if needed)..."})
+        + "\n"
+    )
+    build_proc = await asyncio.create_subprocess_exec(
+        *build_cmd,
+        cwd=str(repo_root),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    await build_proc.wait()
+    if build_proc.returncode != 0:
+        yield json.dumps({"type": "error", "message": "ETL image build failed"}) + "\n"
+        RUNS[run_id]["status"] = "error"
+        return
+
+    # Step 2: run ETL via docker compose run (volume mount provides /workspace/data and /workspace/etl)
     cmd = [
         "docker",
         "compose",
         "-f",
-        str(repo_root / "docker-compose.yml"),
+        compose_file,
         "-p",
         "br-acc",
-        "--profile",
-        "etl",
         "run",
         "--rm",
         "--no-deps",
         "-e",
         f"NEO4J_PASSWORD={neo4j_password}",
+        "-e",
+        "NEO4J_URI=bolt://neo4j:7687",
+        "-e",
+        "NEO4J_USER=neo4j",
+        "-e",
+        "PYTHONUNBUFFERED=1",
         "etl",
         "bash",
-        "-lc",
+        "-c",
         f"cd /workspace/etl && uv run bracc-etl run --source {pipeline_id} "
         f"--neo4j-uri bolt://neo4j:7687 --neo4j-user neo4j "
         f'--neo4j-password "$NEO4J_PASSWORD" --neo4j-database neo4j '
-        f"--data-dir ../data --linking-tier full",
+        f"--data-dir /workspace/data --linking-tier full",
     ]
 
-    yield json.dumps({"type": "start", "run_id": run_id, "cmd": " ".join(cmd[-1:])}) + "\n"
+    yield json.dumps({"type": "start", "run_id": run_id, "cmd": f"etl run --source {pipeline_id}"}) + "\n"
 
     try:
         proc = await asyncio.create_subprocess_exec(
