@@ -43,7 +43,7 @@ class CeafPipeline(Pipeline):
         self._raw = pd.read_csv(
             ceaf_dir / "ceaf.csv",
             dtype=str,
-            encoding="latin-1",
+            encoding="utf-8",
             keep_default_na=False,
         )
 

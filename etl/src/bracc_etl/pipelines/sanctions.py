@@ -54,10 +54,10 @@ class SanctionsPipeline(Pipeline):
             logger.warning("[%s] Required CSV files not found in %s", self.name, sanctions_dir)
             return
         self._raw_ceis = pd.read_csv(
-            ceis_path, dtype=str, encoding="latin-1", keep_default_na=False,
+            ceis_path, dtype=str, encoding="utf-8", keep_default_na=False,
         )
         self._raw_cnep = pd.read_csv(
-            cnep_path, dtype=str, encoding="latin-1", keep_default_na=False,
+            cnep_path, dtype=str, encoding="utf-8", keep_default_na=False,
         )
 
     def _process_rows(
