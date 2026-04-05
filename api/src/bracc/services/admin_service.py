@@ -87,6 +87,7 @@ async def run_pipeline(
         "etl",
         "run",
         "--rm",
+        "--no-deps",
         "-e",
         f"NEO4J_PASSWORD={neo4j_password}",
         "etl",
