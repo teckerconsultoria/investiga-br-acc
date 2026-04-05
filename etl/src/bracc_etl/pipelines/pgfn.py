@@ -20,6 +20,30 @@ from bracc_etl.transforms import (
 
 logger = logging.getLogger(__name__)
 
+_FINANCE_QUERY = (
+    "UNWIND $rows AS row "
+    "MERGE (f:Finance {finance_id: row.finance_id}) "
+    "SET f.type = row.type, "
+    "    f.inscription_number = row.inscription_number, "
+    "    f.value = row.value, "
+    "    f.date = row.date, "
+    "    f.situation = row.situation, "
+    "    f.revenue_type = row.revenue_type, "
+    "    f.court_action = row.court_action, "
+    "    f.source = row.source"
+)
+
+_REL_QUERY = (
+    "UNWIND $rows AS row "
+    "MERGE (c:Company {cnpj: row.source_key}) "
+    "ON CREATE SET c.razao_social = row.company_name, c.name = row.company_name "
+    "WITH c, row "
+    "MATCH (f:Finance {finance_id: row.target_key}) "
+    "MERGE (c)-[r:DEVE]->(f) "
+    "SET r.value = row.value, "
+    "    r.date = row.date"
+)
+
 
 class PgfnPipeline(Pipeline):
     """ETL pipeline for PGFN active tax debt (divida ativa da Uniao).
@@ -27,6 +51,8 @@ class PgfnPipeline(Pipeline):
     Ingests company-only records (CNPJ). Person CPFs are pre-masked by PGFN
     and cannot be matched to existing Person nodes.
     Only PRINCIPAL debtors are loaded to avoid double-counting.
+
+    Processes files in streaming chunks to avoid accumulating 24M records in RAM.
     """
 
     name = "pgfn"
@@ -42,8 +68,6 @@ class PgfnPipeline(Pipeline):
     ) -> None:
         super().__init__(driver, data_dir, limit=limit, chunk_size=chunk_size, **kwargs)
         self._csv_files: list[Path] = []
-        self.finances: list[dict[str, Any]] = []
-        self.relationships: list[dict[str, Any]] = []
 
     def _parse_value(self, value: str) -> float:
         """Parse numeric value (may use comma as decimal sep)."""
@@ -67,8 +91,15 @@ class PgfnPipeline(Pipeline):
         logger.info("[pgfn] Found %d CSV files to process", len(self._csv_files))
 
     def transform(self) -> None:
-        finances: list[dict[str, Any]] = []
-        relationships: list[dict[str, Any]] = []
+        # Streaming pipeline: transform happens inline during load().
+        # Set rows_in to a non-zero sentinel so the base class require_data check
+        # doesn't fire prematurely — final count is set at end of load().
+        if self._csv_files:
+            self.rows_in = 1
+
+    def load(self) -> None:
+        loader = Neo4jBatchLoader(self.driver, batch_size=self.chunk_size)
+        total_loaded = 0
         skipped_pf = 0
         skipped_corresponsavel = 0
         skipped_bad_cnpj = 0
@@ -76,6 +107,8 @@ class PgfnPipeline(Pipeline):
 
         for csv_file in self._csv_files:
             logger.info("[pgfn] Processing %s", csv_file.name)
+            finances: list[dict[str, Any]] = []
+            relationships: list[dict[str, Any]] = []
 
             for chunk in pd.read_csv(
                 csv_file,
@@ -85,15 +118,12 @@ class PgfnPipeline(Pipeline):
                 keep_default_na=False,
                 chunksize=100_000,
             ):
-                # Filter to company principal debtors using vectorized ops
                 mask_pj = chunk["TIPO_PESSOA"].str.contains("jur", case=False, na=False)
                 mask_principal = chunk["TIPO_DEVEDOR"] == "PRINCIPAL"
                 skipped_pf += int((~mask_pj).sum())
                 skipped_corresponsavel += int((mask_pj & ~mask_principal).sum())
 
-                filtered = chunk[mask_pj & mask_principal]
-
-                for _, row in filtered.iterrows():
+                for _, row in chunk[mask_pj & mask_principal].iterrows():
                     cnpj_raw = str(row["CPF_CNPJ"]).strip()
                     digits = strip_document(cnpj_raw)
                     if len(digits) != 14:
@@ -125,7 +155,6 @@ class PgfnPipeline(Pipeline):
                         "court_action": ajuizado,
                         "source": "pgfn",
                     })
-
                     relationships.append({
                         "source_key": cnpj_formatted,
                         "target_key": finance_id,
@@ -136,44 +165,28 @@ class PgfnPipeline(Pipeline):
 
                     if self.limit and len(finances) >= self.limit:
                         break
-                if self.limit and len(finances) >= self.limit:
+
+                # Flush chunk to Neo4j immediately — don't accumulate across chunks
+                if finances:
+                    loader._run_batches(_FINANCE_QUERY, finances)
+                    loader._run_batches(_REL_QUERY, relationships)
+                    total_loaded += len(finances)
+                    finances = []
+                    relationships = []
+
+                if self.limit and total_loaded >= self.limit:
                     break
-            if self.limit and len(finances) >= self.limit:
+
+            if self.limit and total_loaded >= self.limit:
                 break
 
-        self.finances = finances
-        self.relationships = relationships
+        self.rows_in = total_loaded
+        self.rows_loaded = total_loaded
 
-        logger.info(
-            "[pgfn] Transformed %d Finance nodes, %d relationships",
-            len(self.finances),
-            len(self.relationships),
-        )
+        logger.info("[pgfn] Loaded %d Finance nodes + DEVE relationships", total_loaded)
         logger.info(
             "[pgfn] Skipped: %d person (masked CPF), %d co-responsible, %d bad CNPJ",
             skipped_pf,
             skipped_corresponsavel,
             skipped_bad_cnpj,
         )
-
-    def load(self) -> None:
-        loader = Neo4jBatchLoader(self.driver)
-        self.rows_in = len(self.finances)
-
-        if self.finances:
-            loaded = loader.load_nodes("Finance", self.finances, key_field="finance_id")
-            logger.info("[pgfn] Loaded %d Finance nodes", loaded)
-
-        if self.relationships:
-            query = (
-                "UNWIND $rows AS row "
-                "MERGE (c:Company {cnpj: row.source_key}) "
-                "ON CREATE SET c.razao_social = row.company_name, c.name = row.company_name "
-                "WITH c, row "
-                "MATCH (f:Finance {finance_id: row.target_key}) "
-                "MERGE (c)-[r:DEVE]->(f) "
-                "SET r.value = row.value, "
-                "    r.date = row.date"
-            )
-            loaded = loader.run_query_with_retry(query, self.relationships, batch_size=2000)
-            logger.info("[pgfn] Loaded %d DEVE relationships", loaded)
