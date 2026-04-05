@@ -29,7 +29,10 @@ def _load_contract(repo_root: Path) -> dict[str, Any]:
 
 
 def _get_repo_root() -> Path:
-    return Path(__file__).resolve().parents[4]
+    base = Path(__file__).resolve().parents[4]
+    if (base / "docs" / "source_registry_br_v1.csv").exists():
+        return base
+    return Path("/app")
 
 
 def list_sources() -> list[dict[str, Any]]:

@@ -35,6 +35,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       APP_ENV: ${APP_ENV:-dev}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      BRACC_SOURCE_REGISTRY_PATH: /app/docs/source_registry_br_v1.csv
     depends_on:
       neo4j:
         condition: service_healthy
@@ -44,6 +45,9 @@ services:
       timeout: 5s
       retries: 8
       start_period: 20s
+    volumes:
+      - ./docs:/app/docs
+      - ./config:/app/config
 
   frontend:
     build: ./frontend
