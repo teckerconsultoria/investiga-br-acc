@@ -161,7 +161,7 @@ async def run_pipeline(
     host_root = _get_host_repo_root()
     if host_root:
         volume_args = [
-            "-v", f"{host_root}/etl:/workspace/etl:ro",
+            "-v", f"{host_root}/etl:/workspace/etl",
             "-v", f"{host_root}/data:/workspace/data",
         ]
         etl_cmd = (
