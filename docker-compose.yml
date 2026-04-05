@@ -71,6 +71,7 @@ services:
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: ${NEO4J_PASSWORD}
       PYTHONUNBUFFERED: "1"
+      PORTAL_API_KEY: ${PORTAL_API_KEY:-}
     volumes:
       - .:/workspace
     depends_on:

@@ -250,16 +250,6 @@ async def run_download(
         "started_at": datetime.now(UTC).isoformat(),
     }
 
-    # Check if download script exists
-    download_script = repo_root / "etl" / "scripts" / f"download_{source}.py"
-    if not download_script.exists():
-        yield json.dumps({
-            "type": "error",
-            "message": f"Download script not found: etl/scripts/download_{source}.py"
-        }) + "\n"
-        RUNS[run_id]["status"] = "error"
-        return
-
     # Get source info to check access_mode
     source_info = get_source(source)
     access_mode = source_info.get("access_mode", "file") if source_info else "file"
@@ -272,14 +262,37 @@ async def run_download(
         RUNS[run_id]["status"] = "unsupported"
         return
 
+    # Determine which download script to use
+    # Portal da Transparencia sources use _api.py scripts
+    api_script_map = {
+        "ceaf": "download_ceaf_api.py",
+        "sanctions": "download_sanctions_api.py",
+    }
+
+    script_name = api_script_map.get(source, f"download_{source}.py")
+    download_script = repo_root / "etl" / "scripts" / script_name
+
+    if not download_script.exists():
+        yield json.dumps({
+            "type": "error",
+            "message": f"Download script not found: etl/scripts/{script_name}"
+        }) + "\n"
+        RUNS[run_id]["status"] = "error"
+        return
+
     compose_file = str(repo_root / "docker-compose.yml")
     host_root = _get_host_repo_root()
 
     # Build download command
-    data_dir = f"/workspace/data/{source}"
+    # Use the data directory that matches the source
+    data_dir_map = {
+        "sanctions": "/workspace/data/sanctions",
+    }
+    data_dir = data_dir_map.get(source, f"/workspace/data/{source}")
+
     download_cmd = (
         f"cd /workspace/etl && "
-        f"uv run python scripts/download_{source}.py --output-dir {data_dir}"
+        f"uv run python scripts/{script_name} --output-dir {data_dir} --no-skip-existing"
     )
 
     if host_root:
@@ -289,9 +302,13 @@ async def run_download(
     else:
         volume_args = []
 
+    # Get the Portal API key from environment (or use default if not set)
+    portal_api_key = os.environ.get("PORTAL_API_KEY", "")
+
     cmd = [
         "docker", "compose", "-f", compose_file, "-p", "br-acc", "run", "--rm",
         *volume_args,
+        "-e", f"PORTAL_API_KEY={portal_api_key}",
         "etl",
         "bash", "-c", download_cmd,
     ]
@@ -299,7 +316,7 @@ async def run_download(
     yield json.dumps({
         "type": "start",
         "run_id": run_id,
-        "cmd": f"download --source {source}",
+        "cmd": f"download --source {source} (via {script_name})",
         "access_mode": access_mode,
     }) + "\n"
 
