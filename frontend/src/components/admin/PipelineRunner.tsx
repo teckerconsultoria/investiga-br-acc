@@ -7,7 +7,13 @@ import { useAdminWebSocket } from "@/hooks/useAdminWebSocket";
 
 import styles from "./PipelineRunner.module.css";
 
-export function PipelineRunner() {
+interface PipelineRunnerProps {
+  neo4jPassword: string;
+  onPasswordChange: (v: string) => void;
+  initialSource?: string;
+}
+
+export function PipelineRunner({ neo4jPassword, onPasswordChange, initialSource }: PipelineRunnerProps) {
   const { t } = useTranslation();
   const [sources, setSources] = useState<AdminSource[]>([]);
   const [selectedSource, setSelectedSource] = useState("");
@@ -16,13 +22,20 @@ export function PipelineRunner() {
   const [quickMode, setQuickMode] = useState<"single" | "bootstrap" | "core">("single");
   const logRef = useRef<HTMLDivElement>(null);
 
-  const ws = useAdminWebSocket("changeme");
+  const ws = useAdminWebSocket(neo4jPassword);
 
   useEffect(() => {
     listAdminSources()
       .then((res) => setSources(res.sources))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (initialSource) {
+      setSelectedSource(initialSource);
+      setQuickMode("single");
+    }
+  }, [initialSource]);
 
   useEffect(() => {
     if (logRef.current) {
@@ -48,6 +61,19 @@ export function PipelineRunner() {
 
   return (
     <div className={styles.container}>
+      <div className={styles.passwordRow}>
+        <label className={styles.passwordLabel}>{t("admin.neo4jPassword", "Senha Neo4j")}</label>
+        <input
+          className={styles.input}
+          type="password"
+          placeholder="••••••••••••••••"
+          value={neo4jPassword}
+          onChange={(e) => onPasswordChange(e.target.value)}
+          disabled={ws.isRunning}
+          style={{ flex: "0 0 280px" }}
+        />
+      </div>
+
       <div className={styles.modeTabs}>
         <button
           className={`${styles.modeTab} ${quickMode === "single" ? styles.modeTabActive : ""}`}

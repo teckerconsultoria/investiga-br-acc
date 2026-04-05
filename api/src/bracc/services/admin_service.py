@@ -203,26 +203,29 @@ async def run_pipeline(
             env={**os.environ},
         )
 
-        async def read_stream(stream, label):
+        queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+        async def _drain(stream: asyncio.StreamReader, label: str) -> None:
             while True:
                 line = await stream.readline()
                 if not line:
                     break
-                yield (
-                    json.dumps(
-                        {
-                            "type": "log",
-                            "source": label,
-                            "line": line.decode(errors="replace").rstrip(),
-                        }
-                    )
+                await queue.put(
+                    json.dumps({"type": "log", "source": label, "line": line.decode(errors="replace").rstrip()})
                     + "\n"
                 )
+            await queue.put(None)
 
-        async for chunk in read_stream(proc.stdout, "stdout"):
-            yield chunk
-        async for chunk in read_stream(proc.stderr, "stderr"):
-            yield chunk
+        t_out = asyncio.create_task(_drain(proc.stdout, "stdout"))
+        t_err = asyncio.create_task(_drain(proc.stderr, "stderr"))
+        done = 0
+        while done < 2:
+            item = await queue.get()
+            if item is None:
+                done += 1
+            else:
+                yield item
+        await asyncio.gather(t_out, t_err)
 
         await proc.wait()
         status = "success" if proc.returncode == 0 else "failed"
@@ -267,26 +270,29 @@ async def run_bootstrap(
             env=env,
         )
 
-        async def read_stream(stream, label):
+        queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+        async def _drain(stream: asyncio.StreamReader, label: str) -> None:
             while True:
                 line = await stream.readline()
                 if not line:
                     break
-                yield (
-                    json.dumps(
-                        {
-                            "type": "log",
-                            "source": label,
-                            "line": line.decode(errors="replace").rstrip(),
-                        }
-                    )
+                await queue.put(
+                    json.dumps({"type": "log", "source": label, "line": line.decode(errors="replace").rstrip()})
                     + "\n"
                 )
+            await queue.put(None)
 
-        async for chunk in read_stream(proc.stdout, "stdout"):
-            yield chunk
-        async for chunk in read_stream(proc.stderr, "stderr"):
-            yield chunk
+        t_out = asyncio.create_task(_drain(proc.stdout, "stdout"))
+        t_err = asyncio.create_task(_drain(proc.stderr, "stderr"))
+        done = 0
+        while done < 2:
+            item = await queue.get()
+            if item is None:
+                done += 1
+            else:
+                yield item
+        await asyncio.gather(t_out, t_err)
 
         await proc.wait()
         status = "success" if proc.returncode == 0 else "failed"

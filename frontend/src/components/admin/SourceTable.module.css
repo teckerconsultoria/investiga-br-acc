@@ -105,3 +105,22 @@
   font-size: var(--font-size-xs);
   font-weight: 600;
 }
+
+.btnRun {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: var(--accent);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity var(--transition-fast);
+}
+
+.btnRun:hover {
+  opacity: 1;
+}

@@ -294,6 +294,24 @@
   gap: var(--space-xs);
 }
 
+.passwordRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.passwordLabel {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .coreChip {
   background: var(--bg-primary);
   border: 1px solid var(--border);

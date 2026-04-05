@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Play } from "lucide-react";
 
 import { listAdminSources, type AdminSource } from "@/api/client";
 import { Skeleton } from "@/components/common/Skeleton";
@@ -23,7 +24,11 @@ const STATUS_COLORS: Record<string, string> = {
   not_built: "var(--text-muted)",
 };
 
-export function SourceTable() {
+interface SourceTableProps {
+  onRun?: (pipelineId: string) => void;
+}
+
+export function SourceTable({ onRun }: SourceTableProps) {
   const { t } = useTranslation();
   const addToast = useToastStore((s) => s.addToast);
   const [sources, setSources] = useState<AdminSource[]>([]);
@@ -114,6 +119,7 @@ export function SourceTable() {
               <th className={styles.th}>{t("admin.colQuality")}</th>
               <th className={styles.th}>{t("admin.colFrequency")}</th>
               <th className={styles.th}>{t("admin.colMode")}</th>
+              {onRun && <th className={styles.th}></th>}
             </tr>
           </thead>
           <tbody>
@@ -154,6 +160,19 @@ export function SourceTable() {
                 <td className={styles.td}>{source.quality_status || "-"}</td>
                 <td className={styles.td}>{source.frequency}</td>
                 <td className={styles.td}>{source.access_mode}</td>
+                {onRun && (
+                  <td className={styles.td}>
+                    {source.implementation_state === "implemented" && source.pipeline_id && (
+                      <button
+                        className={styles.btnRun}
+                        onClick={() => onRun(source.pipeline_id)}
+                        title={t("admin.run", "Executar")}
+                      >
+                        <Play size={12} />
+                      </button>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

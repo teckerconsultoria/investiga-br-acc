@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-
 interface LogEntry {
   type: string;
   source?: string;
@@ -15,6 +14,7 @@ export function useAdminWebSocket(
   neo4jPassword: string,
 ) {
   const wsRef = useRef<WebSocket | null>(null);
+  const pendingMessageRef = useRef<string | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
@@ -25,7 +25,15 @@ export function useAdminWebSocket(
     const host = window.location.host;
     const ws = new WebSocket(`${protocol}//${host}/api/v1/admin/ws/logs`);
 
-    ws.onopen = () => setIsConnected(true);
+    ws.onopen = () => {
+      setIsConnected(true);
+      const pending = pendingMessageRef.current;
+      if (pending) {
+        pendingMessageRef.current = null;
+        ws.send(pending);
+        setIsRunning(true);
+      }
+    };
     ws.onclose = () => {
       setIsConnected(false);
       wsRef.current = null;
@@ -47,7 +55,7 @@ export function useAdminWebSocket(
     };
 
     wsRef.current = ws;
-  }, [neo4jPassword]);
+  }, []);
 
   const disconnect = useCallback(() => {
     wsRef.current?.close();
@@ -58,29 +66,18 @@ export function useAdminWebSocket(
 
   const runPipeline = useCallback(
     (pipelineId: string) => {
+      const msg = JSON.stringify({
+        type: "pipeline",
+        pipeline_id: pipelineId,
+        neo4j_password: neo4jPassword,
+      });
+      setLogs([]);
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+        pendingMessageRef.current = msg;
         connect();
-        setTimeout(() => {
-          wsRef.current?.send(
-            JSON.stringify({
-              type: "pipeline",
-              pipeline_id: pipelineId,
-              neo4j_password: neo4jPassword,
-            }),
-          );
-          setIsRunning(true);
-          setLogs([]);
-        }, 500);
       } else {
-        wsRef.current.send(
-          JSON.stringify({
-            type: "pipeline",
-            pipeline_id: pipelineId,
-            neo4j_password: neo4jPassword,
-          }),
-        );
+        wsRef.current.send(msg);
         setIsRunning(true);
-        setLogs([]);
       }
     },
     [connect, neo4jPassword],
@@ -88,31 +85,19 @@ export function useAdminWebSocket(
 
   const runBootstrap = useCallback(
     (sources: string, resetDb: boolean) => {
+      const msg = JSON.stringify({
+        type: "bootstrap",
+        sources,
+        reset_db: resetDb,
+        neo4j_password: neo4jPassword,
+      });
+      setLogs([]);
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+        pendingMessageRef.current = msg;
         connect();
-        setTimeout(() => {
-          wsRef.current?.send(
-            JSON.stringify({
-              type: "bootstrap",
-              sources,
-              reset_db: resetDb,
-              neo4j_password: neo4jPassword,
-            }),
-          );
-          setIsRunning(true);
-          setLogs([]);
-        }, 500);
       } else {
-        wsRef.current.send(
-          JSON.stringify({
-            type: "bootstrap",
-            sources,
-            reset_db: resetDb,
-            neo4j_password: neo4jPassword,
-          }),
-        );
+        wsRef.current.send(msg);
         setIsRunning(true);
-        setLogs([]);
       }
     },
     [connect, neo4jPassword],
