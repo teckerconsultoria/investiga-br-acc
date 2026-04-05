@@ -46,6 +46,7 @@ class CeafPipeline(Pipeline):
             encoding="utf-8",
             keep_default_na=False,
         )
+        self.rows_in = len(self._raw)
 
     def transform(self) -> None:
         expulsions: list[dict[str, Any]] = []

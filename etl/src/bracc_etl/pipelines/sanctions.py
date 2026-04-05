@@ -59,6 +59,7 @@ class SanctionsPipeline(Pipeline):
         self._raw_cnep = pd.read_csv(
             cnep_path, dtype=str, encoding="utf-8", keep_default_na=False,
         )
+        self.rows_in = len(self._raw_ceis) + len(self._raw_cnep)
 
     def _process_rows(
         self, df: pd.DataFrame, sanction_type: str
