@@ -14,6 +14,7 @@ from bracc.middleware.cpf_masking import CPFMaskingMiddleware
 from bracc.middleware.rate_limit import limiter
 from bracc.middleware.security_headers import SecurityHeadersMiddleware
 from bracc.routers import (
+    admin,
     auth,
     baseline,
     emendas,
@@ -33,8 +34,7 @@ _logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     weak_or_default_jwt = (
-        settings.jwt_secret_key == "change-me-in-production"
-        or len(settings.jwt_secret_key) < 32
+        settings.jwt_secret_key == "change-me-in-production" or len(settings.jwt_secret_key) < 32
     )
     if weak_or_default_jwt:
         msg = "JWT secret is weak or default — set JWT_SECRET_KEY env var (>= 32 chars)"
@@ -89,6 +89,7 @@ app.include_router(baseline.router)
 app.include_router(investigation.router)
 app.include_router(investigation.shared_router)
 app.include_router(emendas.router)
+app.include_router(admin.router)
 
 
 @app.get("/health")

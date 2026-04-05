@@ -18,6 +18,7 @@ import { useAuthStore } from "./stores/auth";
 
 const EntityAnalysis = lazy(() => import("./pages/EntityAnalysis").then((m) => ({ default: m.EntityAnalysis })));
 const Emendas = lazy(() => import("./pages/Emendas").then((m) => ({ default: m.Emendas })));
+const Admin = lazy(() => import("./pages/Admin").then((m) => ({ default: m.Admin })));
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token);
@@ -84,6 +85,7 @@ export function App() {
         <Route path="baseline/:entityId" element={<Baseline />} />
         {!IS_PUBLIC_MODE && <Route path="investigations" element={<Investigations />} />}
         {!IS_PUBLIC_MODE && <Route path="investigations/:investigationId" element={<Investigations />} />}
+        {!IS_PUBLIC_MODE && <Route path="admin" element={<Suspense fallback={<Spinner />}><Admin /></Suspense>} />}
       </Route>
 
       {/* Catch-all */}

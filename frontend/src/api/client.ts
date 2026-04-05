@@ -468,3 +468,51 @@ export function exportInvestigationPDF(
     `/api/v1/investigations/${encodeURIComponent(investigationId)}/export/pdf?${params}`,
   );
 }
+
+// ── Admin ──────────────────────────────────────────────
+export interface AdminSource {
+  id: string;
+  name: string;
+  category: string;
+  tier: string;
+  status: string;
+  implementation_state: string;
+  load_state: string;
+  frequency: string;
+  in_universe_v1: boolean;
+  primary_url: string;
+  pipeline_id: string;
+  owner_agent: string;
+  access_mode: string;
+  notes: string;
+  public_access_mode: string;
+  discovery_status: string;
+  cadence_expected: string;
+  quality_status: string;
+}
+
+export interface BootstrapStatus {
+  status: string;
+  total_sources: number;
+  counts: Record<string, number>;
+  started_at: string | null;
+  ended_at: string | null;
+  core_failures: string[];
+}
+
+export interface AdminConfig {
+  core_sources: string[];
+  total_sources: number;
+}
+
+export function listAdminSources(): Promise<{ sources: AdminSource[] }> {
+  return apiFetch("/api/v1/admin/sources");
+}
+
+export function getBootstrapStatus(): Promise<BootstrapStatus> {
+  return apiFetch("/api/v1/bootstrap/status");
+}
+
+export function getAdminConfig(): Promise<AdminConfig> {
+  return apiFetch("/api/v1/admin/config");
+}

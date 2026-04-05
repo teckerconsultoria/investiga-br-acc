@@ -12,6 +12,7 @@ import {
   Search,
   Sun,
   Landmark,
+  Settings,
 } from "lucide-react";
 
 import { registerActions, type Action } from "@/actions/registry";
@@ -31,6 +32,7 @@ const NAV_ITEMS = [
   { path: "/app/emendas", icon: Landmark, labelKey: "nav.emendas" },
   { path: "/app/search", icon: Search, labelKey: "nav.search" },
   { path: "/app/investigations", icon: FolderOpen, labelKey: "nav.investigations" },
+  { path: "/app/admin", icon: Settings, labelKey: "nav.admin" },
 ] as const;
 
 export function AppShell() {
