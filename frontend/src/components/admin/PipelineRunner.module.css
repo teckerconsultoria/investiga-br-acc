@@ -107,6 +107,31 @@
   cursor: not-allowed;
 }
 
+.btnCyan {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  background: var(--system-cyan);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  padding: var(--space-sm) var(--space-md);
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+
+.btnCyan:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.btnCyan:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .btnDanger {
   display: inline-flex;
   align-items: center;

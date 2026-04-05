@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Play, RotateCcw, Info, AlertTriangle, Square } from "lucide-react";
+import { Play, RotateCcw, Info, AlertTriangle, Square, Download } from "lucide-react";
 
 import { listAdminSources, type AdminSource } from "@/api/client";
 import { useAdminWebSocket } from "@/hooks/useAdminWebSocket";
@@ -11,15 +11,17 @@ interface PipelineRunnerProps {
   neo4jPassword: string;
   onPasswordChange: (v: string) => void;
   initialSource?: string;
+  downloadMode?: boolean;
 }
 
-export function PipelineRunner({ neo4jPassword, onPasswordChange, initialSource }: PipelineRunnerProps) {
+export function PipelineRunner({ neo4jPassword, onPasswordChange, initialSource, downloadMode: initialDownloadMode }: PipelineRunnerProps) {
   const { t } = useTranslation();
   const [sources, setSources] = useState<AdminSource[]>([]);
   const [selectedSource, setSelectedSource] = useState("");
   const [resetDb, setResetDb] = useState(false);
   const [bootstrapSources, setBootstrapSources] = useState("");
   const [quickMode, setQuickMode] = useState<"single" | "bootstrap" | "core">("single");
+  const [downloadMode, setDownloadMode] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
 
   const ws = useAdminWebSocket(neo4jPassword);
@@ -38,6 +40,13 @@ export function PipelineRunner({ neo4jPassword, onPasswordChange, initialSource 
   }, [initialSource]);
 
   useEffect(() => {
+    if (initialDownloadMode) {
+      setDownloadMode(true);
+      setQuickMode("single");
+    }
+  }, [initialDownloadMode]);
+
+  useEffect(() => {
     if (logRef.current) {
       logRef.current.scrollTop = logRef.current.scrollHeight;
     }
@@ -49,6 +58,11 @@ export function PipelineRunner({ neo4jPassword, onPasswordChange, initialSource 
   const handleRunPipeline = () => {
     if (!selectedSource) return;
     ws.runPipeline(selectedSource);
+  };
+
+  const handleRunDownload = () => {
+    if (!selectedSource) return;
+    ws.runDownload(selectedSource);
   };
 
   const handleRunBootstrap = () => {
@@ -97,8 +111,14 @@ export function PipelineRunner({ neo4jPassword, onPasswordChange, initialSource 
 
       {quickMode === "single" && (
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>{t("admin.runSingle")}</h2>
-          <p className={styles.hint}>{t("admin.runSingleHint")}</p>
+          <h2 className={styles.sectionTitle}>
+            {downloadMode ? t("admin.downloadSingle", "Baixar Dados da Fonte") : t("admin.runSingle")}
+          </h2>
+          <p className={styles.hint}>
+            {downloadMode
+              ? t("admin.downloadSingleHint", "Baixa os dados brutos da fonte para o diretório de dados. Execute o pipeline ETL após o download.")
+              : t("admin.runSingleHint")}
+          </p>
           <div className={styles.formRow}>
             <select
               className={styles.select}
@@ -113,12 +133,12 @@ export function PipelineRunner({ neo4jPassword, onPasswordChange, initialSource 
               ))}
             </select>
             <button
-              className={styles.btnPrimary}
-              onClick={handleRunPipeline}
+              className={downloadMode ? styles.btnCyan : styles.btnPrimary}
+              onClick={downloadMode ? handleRunDownload : handleRunPipeline}
               disabled={ws.isRunning || !selectedSource}
             >
-              <Play size={16} />
-              {t("admin.run")}
+              <Download size={16} />
+              {downloadMode ? t("admin.download", "Baixar") : t("admin.run")}
             </button>
           </div>
           {selectedInfo && (
@@ -204,7 +224,7 @@ export function PipelineRunner({ neo4jPassword, onPasswordChange, initialSource 
             {ws.isRunning && (
               <span className={styles.running}>
                 <Square size={12} />
-                {t("admin.running")}
+                {downloadMode ? t("admin.downloading", "Baixando...") : t("admin.running")}
               </span>
             )}
           </div>

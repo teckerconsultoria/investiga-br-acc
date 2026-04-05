@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Play } from "lucide-react";
+import { Play, Download } from "lucide-react";
 
 import { listAdminSources, type AdminSource } from "@/api/client";
 import { Skeleton } from "@/components/common/Skeleton";
@@ -26,9 +26,10 @@ const STATUS_COLORS: Record<string, string> = {
 
 interface SourceTableProps {
   onRun?: (pipelineId: string) => void;
+  onDownload?: (pipelineId: string) => void;
 }
 
-export function SourceTable({ onRun }: SourceTableProps) {
+export function SourceTable({ onRun, onDownload }: SourceTableProps) {
   const { t } = useTranslation();
   const addToast = useToastStore((s) => s.addToast);
   const [sources, setSources] = useState<AdminSource[]>([]);
@@ -119,6 +120,7 @@ export function SourceTable({ onRun }: SourceTableProps) {
               <th className={styles.th}>{t("admin.colQuality")}</th>
               <th className={styles.th}>{t("admin.colFrequency")}</th>
               <th className={styles.th}>{t("admin.colMode")}</th>
+              {onDownload && <th className={styles.th}></th>}
               {onRun && <th className={styles.th}></th>}
             </tr>
           </thead>
@@ -160,6 +162,19 @@ export function SourceTable({ onRun }: SourceTableProps) {
                 <td className={styles.td}>{source.quality_status || "-"}</td>
                 <td className={styles.td}>{source.frequency}</td>
                 <td className={styles.td}>{source.access_mode}</td>
+                {onDownload && (
+                  <td className={styles.td}>
+                    {source.access_mode === "file" && source.pipeline_id && (
+                      <button
+                        className={styles.btnDownload}
+                        onClick={() => onDownload(source.pipeline_id)}
+                        title={t("admin.download", "Baixar dados")}
+                      >
+                        <Download size={12} />
+                      </button>
+                    )}
+                  </td>
+                )}
                 {onRun && (
                   <td className={styles.td}>
                     {source.implementation_state === "implemented" && source.pipeline_id && (

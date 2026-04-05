@@ -12,6 +12,7 @@ export function Admin() {
   const [activeTab, setActiveTab] = useState<"sources" | "run" | "config">("sources");
   const [neo4jPassword, setNeo4jPassword] = useState("");
   const [initialSource, setInitialSource] = useState<string | undefined>();
+  const [downloadMode, setDownloadMode] = useState(false);
 
   const tabs = [
     { key: "sources" as const, label: t("admin.tabSources") },
@@ -21,6 +22,13 @@ export function Admin() {
 
   const handleRunSource = useCallback((pipelineId: string) => {
     setInitialSource(pipelineId);
+    setDownloadMode(false);
+    setActiveTab("run");
+  }, []);
+
+  const handleDownloadSource = useCallback((pipelineId: string) => {
+    setInitialSource(pipelineId);
+    setDownloadMode(true);
     setActiveTab("run");
   }, []);
 
@@ -41,12 +49,13 @@ export function Admin() {
       </nav>
 
       <div className={styles.content}>
-        {activeTab === "sources" && <SourceTable onRun={handleRunSource} />}
+        {activeTab === "sources" && <SourceTable onRun={handleRunSource} onDownload={handleDownloadSource} />}
         {activeTab === "run" && (
           <PipelineRunner
             neo4jPassword={neo4jPassword}
             onPasswordChange={setNeo4jPassword}
             initialSource={initialSource}
+            downloadMode={downloadMode}
           />
         )}
         {activeTab === "config" && <ConfigEditor />}

@@ -106,6 +106,26 @@
   font-weight: 600;
 }
 
+.btnDownload {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: var(--system-cyan);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity var(--transition-fast);
+  margin-right: 4px;
+}
+
+.btnDownload:hover {
+  opacity: 1;
+}
+
 .btnRun {
   display: inline-flex;
   align-items: center;

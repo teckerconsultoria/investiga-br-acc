@@ -83,6 +83,25 @@ export function useAdminWebSocket(
     [connect, neo4jPassword],
   );
 
+  const runDownload = useCallback(
+    (source: string) => {
+      const msg = JSON.stringify({
+        type: "download",
+        source,
+        neo4j_password: neo4jPassword,
+      });
+      setLogs([]);
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+        pendingMessageRef.current = msg;
+        connect();
+      } else {
+        wsRef.current.send(msg);
+        setIsRunning(true);
+      }
+    },
+    [connect, neo4jPassword],
+  );
+
   const runBootstrap = useCallback(
     (sources: string, resetDb: boolean) => {
       const msg = JSON.stringify({
@@ -120,6 +139,7 @@ export function useAdminWebSocket(
     connect,
     disconnect,
     runPipeline,
+    runDownload,
     runBootstrap,
     onEnd,
   };

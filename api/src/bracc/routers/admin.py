@@ -115,6 +115,13 @@ async def logs_websocket(websocket: WebSocket):
                     continue
                 async for chunk in admin_service.run_pipeline(pipeline_id, neo4j_password):
                     await websocket.send_json(json.loads(chunk))
+            elif run_type == "download":
+                source = msg.get("source")
+                if not source:
+                    await websocket.send_json({"type": "error", "message": "source required"})
+                    continue
+                async for chunk in admin_service.run_download(source):
+                    await websocket.send_json(json.loads(chunk))
             elif run_type == "bootstrap":
                 sources = msg.get("sources", "")
                 reset_db = msg.get("reset_db", False)

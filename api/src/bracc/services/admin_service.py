@@ -238,6 +238,115 @@ async def run_pipeline(
         yield json.dumps({"type": "error", "message": str(exc)}) + "\n"
 
 
+async def run_download(
+    source: str,
+) -> AsyncGenerator[str, None]:
+    """Run download script for a data source and stream logs via WebSocket."""
+    repo_root = _get_repo_root()
+    run_id = f"download-{source}-{uuid.uuid4().hex[:8]}"
+    RUNS[run_id] = {
+        "source": source,
+        "status": "running",
+        "started_at": datetime.now(UTC).isoformat(),
+    }
+
+    # Check if download script exists
+    download_script = repo_root / "etl" / "scripts" / f"download_{source}.py"
+    if not download_script.exists():
+        yield json.dumps({
+            "type": "error",
+            "message": f"Download script not found: etl/scripts/download_{source}.py"
+        }) + "\n"
+        RUNS[run_id]["status"] = "error"
+        return
+
+    # Get source info to check access_mode
+    source_info = get_source(source)
+    access_mode = source_info.get("access_mode", "file") if source_info else "file"
+
+    if access_mode == "bigquery":
+        yield json.dumps({
+            "type": "error",
+            "message": f"Source '{source}' requires GCP BigQuery credentials. Not supported via admin panel."
+        }) + "\n"
+        RUNS[run_id]["status"] = "unsupported"
+        return
+
+    compose_file = str(repo_root / "docker-compose.yml")
+    host_root = _get_host_repo_root()
+
+    # Build download command
+    data_dir = f"/workspace/data/{source}"
+    download_cmd = (
+        f"cd /workspace/etl && "
+        f"uv run python scripts/download_{source}.py --output-dir {data_dir}"
+    )
+
+    if host_root:
+        volume_args = [
+            "-v", f"{host_root}/data:/workspace/data",
+        ]
+    else:
+        volume_args = []
+
+    cmd = [
+        "docker", "compose", "-f", compose_file, "-p", "br-acc", "run", "--rm",
+        *volume_args,
+        "etl",
+        "bash", "-c", download_cmd,
+    ]
+
+    yield json.dumps({
+        "type": "start",
+        "run_id": run_id,
+        "cmd": f"download --source {source}",
+        "access_mode": access_mode,
+    }) + "\n"
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            cwd=str(repo_root),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env={**os.environ},
+        )
+
+        queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+        async def _drain(stream: asyncio.StreamReader, label: str) -> None:
+            while True:
+                line = await stream.readline()
+                if not line:
+                    break
+                await queue.put(
+                    json.dumps({"type": "log", "source": label, "line": line.decode(errors="replace").rstrip()})
+                    + "\n"
+                )
+            await queue.put(None)
+
+        t_out = asyncio.create_task(_drain(proc.stdout, "stdout"))
+        t_err = asyncio.create_task(_drain(proc.stderr, "stderr"))
+        done = 0
+        while done < 2:
+            item = await queue.get()
+            if item is None:
+                done += 1
+            else:
+                yield item
+        await asyncio.gather(t_out, t_err)
+
+        await proc.wait()
+        status = "success" if proc.returncode == 0 else "failed"
+        RUNS[run_id]["status"] = status
+        RUNS[run_id]["exit_code"] = proc.returncode
+        yield json.dumps({"type": "end", "status": status, "exit_code": proc.returncode}) + "\n"
+    except Exception as exc:
+        RUNS[run_id]["status"] = "error"
+        RUNS[run_id]["error"] = str(exc)
+        yield json.dumps({"type": "error", "message": str(exc)}) + "\n"
+
+
 async def run_bootstrap(
     neo4j_password: str,
     reset_db: bool = False,
