@@ -1,4 +1,4 @@
-.PHONY: dev stop api etl frontend lint type-check test test-api test-etl test-frontend test-integration-api test-integration-etl test-integration check seed clean download-cnpj download-tse download-transparencia download-sanctions download-all etl-cnpj etl-cnpj-stream etl-tse etl-transparencia etl-sanctions etl-all link-persons bootstrap-demo bootstrap-full bootstrap-all bootstrap-all-noninteractive bootstrap-all-report check-public-claims check-source-urls check-pipeline-contracts check-pipeline-inputs generate-pipeline-status generate-source-summary generate-reference-metrics
+.PHONY: dev stop api etl frontend lint type-check test test-api test-etl test-frontend test-integration-api test-integration-etl test-integration check seed clean download-cnpj download-tse download-transparencia download-sanctions download-tcu download-transferegov download-pgfn download-all etl-cnpj etl-cnpj-stream etl-tse etl-transparencia etl-sanctions etl-tcu etl-transferegov etl-pgfn etl-all link-persons bootstrap-demo bootstrap-full bootstrap-all bootstrap-all-noninteractive bootstrap-all-report check-public-claims check-source-urls check-pipeline-contracts check-pipeline-inputs generate-pipeline-status generate-source-summary generate-reference-metrics
 
 # ── Development ─────────────────────────────────────────
 setup-env:
@@ -64,6 +64,28 @@ download-sanctions:
 
 etl-sanctions:
 	cd etl && uv run bracc-etl run --source sanctions --neo4j-password "$${NEO4J_PASSWORD}" --data-dir ../data
+
+# ── All Data ──────────────────────────────────────────
+# ── TCU Data ──────────────────────────────────────────
+download-tcu:
+	cd etl && uv run python scripts/download_tcu.py
+
+etl-tcu:
+	cd etl && uv run bracc-etl run --source tcu --neo4j-password "$${NEO4J_PASSWORD}" --data-dir ../data
+
+# ── TransfereGov Data ─────────────────────────────────
+download-transferegov:
+	cd etl && uv run python scripts/download_transferegov.py
+
+etl-transferegov:
+	cd etl && uv run bracc-etl run --source transferegov --neo4j-password "$${NEO4J_PASSWORD}" --data-dir ../data
+
+# ── PGFN Data ─────────────────────────────────────────
+download-pgfn:
+	cd etl && uv run python scripts/download_pgfn.py --year 2025 --quarter 1
+
+etl-pgfn:
+	cd etl && uv run bracc-etl run --source pgfn --neo4j-password "$${NEO4J_PASSWORD}" --data-dir ../data
 
 # ── All Data ──────────────────────────────────────────
 download-all: download-cnpj download-tse download-transparencia download-sanctions
