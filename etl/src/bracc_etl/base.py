@@ -46,6 +46,9 @@ class Pipeline(ABC):
     def load(self) -> None:
         """Load transformed data into Neo4j."""
 
+    #: Set to False in subclasses where 0 rows is a valid outcome.
+    require_data: bool = True
+
     def run(self) -> None:
         """Execute the full ETL pipeline."""
         started_at = datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -57,13 +60,25 @@ class Pipeline(ABC):
             self.transform()
             logger.info("[%s] Starting load...", self.name)
             self.load()
+
+            if self.require_data and self.rows_in == 0:
+                source_id = getattr(self, "source_id", self.name)
+                data_path = os.path.join(self.data_dir, source_id)
+                raise RuntimeError(
+                    f"[{self.name}] No data found in {data_path} — "
+                    f"run the download step before executing this pipeline."
+                )
+
             finished_at = datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
             self._upsert_ingestion_run(
                 status="loaded",
                 started_at=started_at,
                 finished_at=finished_at,
             )
-            logger.info("[%s] Pipeline complete.", self.name)
+            logger.info(
+                "[%s] Pipeline complete. rows_in=%d rows_loaded=%d",
+                self.name, self.rows_in, self.rows_loaded,
+            )
         except Exception as exc:
             finished_at = datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
             self._upsert_ingestion_run(
