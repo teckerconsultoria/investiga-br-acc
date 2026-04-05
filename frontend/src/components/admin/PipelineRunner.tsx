@@ -2,15 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Play, RotateCcw, Square } from "lucide-react";
 
-import { getAdminConfig, listAdminSources, type AdminSource } from "@/api/client";
+import { listAdminSources, type AdminSource } from "@/api/client";
 import { useAdminWebSocket } from "@/hooks/useAdminWebSocket";
-import { useToastStore } from "@/stores/toast";
 
 import styles from "./PipelineRunner.module.css";
 
 export function PipelineRunner() {
   const { t } = useTranslation();
-  const addToast = useToastStore((s) => s.addToast);
   const [sources, setSources] = useState<AdminSource[]>([]);
   const [selectedSource, setSelectedSource] = useState("");
   const [resetDb, setResetDb] = useState(false);

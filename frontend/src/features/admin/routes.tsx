@@ -1,7 +1,7 @@
 import { Settings } from "lucide-react";
 import { lazy } from "react";
 
-const Admin = lazy(() => import("./pages/Admin").then((m) => ({ default: m.Admin })));
+const Admin = lazy(() => import("../../pages/Admin").then((m) => ({ default: m.Admin })));
 
 export const adminRoute = {
   path: "admin",

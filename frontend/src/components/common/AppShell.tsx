@@ -115,6 +115,7 @@ export function AppShell() {
       if (!IS_PUBLIC_MODE) {
         base.push(
           { id: "go-investigations", label: t("command.goToInvestigations"), shortcut: "cmd+4", group: t("command.navigation"), handler: () => navigate("/app/investigations") },
+          { id: "go-admin", label: t("command.goToAdmin"), shortcut: "cmd+5", group: t("command.navigation"), handler: () => navigate("/app/admin") },
         );
       }
       return base;

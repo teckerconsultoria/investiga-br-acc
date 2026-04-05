@@ -409,6 +409,7 @@ const resources = {
         goToSearch: "Ir para Busca",
         goToPatterns: "Ir para Padrões",
         goToInvestigations: "Ir para Investigações",
+        goToAdmin: "Ir para Admin",
         toggleFullscreen: "Alternar tela cheia",
         toggleSidebar: "Alternar barra lateral",
         showShortcuts: "Mostrar atalhos",
