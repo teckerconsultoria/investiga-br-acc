@@ -45,16 +45,12 @@ def _get_host_repo_root() -> str | None:
     host. Docker-in-Docker volume paths must use HOST paths (not container paths)
     because the Docker daemon resolves them on the host filesystem.
     """
-    # Read /proc/mounts to find where /app/host is mounted from on the host
-    try:
-        with open("/proc/mounts") as f:
-            for line in f:
-                parts = line.split()
-                if len(parts) >= 2 and parts[1] == "/app/host":
-                    return parts[0]
-    except OSError:
-        pass
-    # Fallback: inspect current container via Docker socket
+    # 1. Explicit env var — most reliable when set in docker-compose.yml
+    env_val = os.environ.get("HOST_REPO_ROOT", "").strip()
+    if env_val:
+        return env_val
+
+    # 2. docker inspect on the current container — queries daemon directly
     try:
         import socket as _socket
 
@@ -71,10 +67,23 @@ def _get_host_repo_root() -> str | None:
             timeout=5,
         )
         path = result.stdout.strip()
-        if path:
+        if path and path.startswith("/") and not path.startswith("/dev/"):
             return path
     except Exception:
         pass
+
+    # 3. /proc/mounts — only valid for bind mounts (not block devices)
+    try:
+        with open("/proc/mounts") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 2 and parts[1] == "/app/host":
+                    src = parts[0]
+                    if src.startswith("/") and not src.startswith("/dev/"):
+                        return src
+    except OSError:
+        pass
+
     return None
 
 

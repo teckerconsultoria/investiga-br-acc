@@ -36,6 +36,7 @@ services:
       APP_ENV: ${APP_ENV:-dev}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       BRACC_SOURCE_REGISTRY_PATH: /app/docs/source_registry_br_v1.csv
+      HOST_REPO_ROOT: ${PWD}
     depends_on:
       neo4j:
         condition: service_healthy
