@@ -1,0 +1,84 @@
+name: Release Label Policy
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled, ready_for_review]
+    branches: [main]
+
+jobs:
+  check_release_label:
+    name: Check Release Label
+    if: ${{ github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: read
+      pull-requests: read
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const allowed = new Set([
+              "release:major",
+              "release:feature",
+              "release:patterns",
+              "release:api",
+              "release:data",
+              "release:privacy",
+              "release:fix",
+              "release:docs",
+              "release:infra",
+              "release:security",
+            ]);
+
+            const retryableActions = new Set([
+              "opened",
+              "edited",
+              "synchronize",
+              "reopened",
+              "ready_for_review",
+            ]);
+            const maxAttempts = retryableActions.has(context.payload.action) ? 6 : 1;
+            const retryDelayMs = 5000;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.issue.number;
+
+            async function getReleaseLabels() {
+              const labels = await github.paginate(github.rest.issues.listLabelsOnIssue, {
+                owner,
+                repo,
+                issue_number,
+                per_page: 100,
+              });
+
+              return labels
+                .map((label) => label.name)
+                .filter((label) => allowed.has(label));
+            }
+
+            let releaseLabels = [];
+            for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+              releaseLabels = await getReleaseLabels();
+              core.info(
+                `Attempt ${attempt}/${maxAttempts}: ${
+                  releaseLabels.join(", ") || "none"
+                }`,
+              );
+
+              if (releaseLabels.length === 1) {
+                return;
+              }
+
+              if (attempt < maxAttempts) {
+                await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+              }
+            }
+
+            core.setFailed(
+              [
+                "PR must have exactly one release label.",
+                `Found: ${releaseLabels.length}`,
+                `Current release labels: ${releaseLabels.join(", ") || "none"}`,
+                "If this is a newly opened or synchronized PR, wait for the auto-label workflow to finish and rerun.",
+              ].join("\n"),
+            );
