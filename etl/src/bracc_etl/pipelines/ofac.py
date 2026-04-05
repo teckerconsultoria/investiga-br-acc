@@ -91,7 +91,8 @@ class OfacPipeline(Pipeline):
         if self.limit:
             self._raw = self._raw.head(self.limit)
 
-        logger.info("[ofac] Extracted %d rows", len(self._raw))
+        self.rows_in = len(self._raw)
+        logger.info("[ofac] Extracted %d rows", self.rows_in)
 
     def transform(self) -> None:
         sanctions: list[dict[str, Any]] = []
