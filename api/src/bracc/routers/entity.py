@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import Annotated, Any
 
@@ -15,6 +16,7 @@ from bracc.models.entity import (
     TimelineEvent,
     TimelineResponse,
 )
+from bracc.services.cnpja_cache import fetch_and_cache
 from bracc.services.intelligence_provider import IntelligenceProvider
 from bracc.services.neo4j_service import execute_query, execute_query_single, sanitize_props
 from bracc.services.public_guard import (
@@ -26,6 +28,8 @@ from bracc.services.public_guard import (
     sanitize_public_properties,
     should_hide_person_entities,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/entity", tags=["entity"])
 
@@ -117,6 +121,21 @@ async def get_entity(
         "entity_lookup",
         {"identifier": identifier, "identifier_formatted": identifier_formatted},
     )
+
+    # CNPJa on-demand fallback: if CNPJ not found locally, try the API
+    if record is None and CNPJ_PATTERN.match(identifier):
+        try:
+            cached = await fetch_and_cache(session, identifier)
+            if cached is not None:
+                # Re-query Neo4j now that the node exists
+                record = await execute_query_single(
+                    session,
+                    "entity_lookup",
+                    {"identifier": identifier, "identifier_formatted": identifier_formatted},
+                )
+        except Exception:
+            logger.warning("CNPJa fallback failed for %s", identifier, exc_info=True)
+
     if record is None:
         raise HTTPException(status_code=404, detail="Entity not found")
     enforce_person_access_policy(record["entity_labels"])

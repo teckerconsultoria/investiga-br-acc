@@ -50,6 +50,13 @@ class Settings(BaseSettings):
     pattern_min_recurrence: int = Field(default=2, ge=1)
     pattern_min_discrepancy_ratio: float = Field(default=0.30, ge=0, le=1)
 
+    # CNPJa API (on-demand CNPJ lookup)
+    cnpja_enabled: bool = False
+    cnpja_api_key: str = ""
+    cnpja_base_url: str = "https://api.cnpja.com"
+    cnpja_timeout: int = 15
+    cnpja_cache_ttl_days: int = 30
+
     model_config = {"env_prefix": "", "env_file": ".env"}
 
 

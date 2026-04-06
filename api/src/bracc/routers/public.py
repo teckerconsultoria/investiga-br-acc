@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from typing import Annotated, Any
 
@@ -11,6 +12,7 @@ from bracc.dependencies import get_session
 from bracc.models.entity import SourceAttribution
 from bracc.models.graph import GraphEdge, GraphNode, GraphResponse
 from bracc.models.pattern import PatternResponse
+from bracc.services.cnpja_cache import fetch_and_cache
 from bracc.services.intelligence_provider import CommunityIntelligenceProvider
 from bracc.services.neo4j_service import execute_query, execute_query_single, sanitize_props
 from bracc.services.public_guard import (
@@ -20,6 +22,8 @@ from bracc.services.public_guard import (
     sanitize_public_properties,
 )
 from bracc.services.source_registry import load_source_registry, source_registry_summary
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
 _PUBLIC_PROVIDER = CommunityIntelligenceProvider()
@@ -95,6 +99,22 @@ async def _resolve_company(
             "company_identifier_formatted": company_identifier_formatted,
         },
     )
+    # CNPJa on-demand fallback for CNPJ lookups
+    if record is None and _CNPJ_PATTERN.match(company_identifier):
+        try:
+            cached = await fetch_and_cache(session, company_identifier)
+            if cached is not None:
+                record = await execute_query_single(
+                    session,
+                    "public_company_lookup",
+                    {
+                        "company_id": company_ref,
+                        "company_identifier": company_identifier,
+                        "company_identifier_formatted": company_identifier_formatted,
+                    },
+                )
+        except Exception:
+            logger.warning("CNPJa fallback failed for %s", company_identifier, exc_info=True)
     if record is None:
         raise HTTPException(status_code=404, detail="Company not found")
     labels = record["entity_labels"]

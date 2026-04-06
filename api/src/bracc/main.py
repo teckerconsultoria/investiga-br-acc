@@ -26,6 +26,7 @@ from bracc.routers import (
     public,
     search,
 )
+from bracc.services.cnpja_client import close_cnpja_client
 from bracc.services.neo4j_service import ensure_schema
 
 _logger = logging.getLogger(__name__)
@@ -53,6 +54,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.neo4j_driver = driver
     await ensure_schema(driver)
     yield
+    await close_cnpja_client()
     await close_driver()
 
 
